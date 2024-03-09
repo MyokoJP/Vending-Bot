@@ -1,4 +1,7 @@
+import json
+import secrets
 import sqlite3
+import traceback
 from datetime import datetime
 
 import config
@@ -15,14 +18,11 @@ class Database:
         conn = Database.get_connection()
         cur = conn.cursor()
 
-        cur.execute(
-            "CREATE TABLE IF NOT EXISTS ticket_buttons(guild_id INTEGER, channel_id INTEGER, message_id INTEGER PRIMARY KEY, role_id INTEGER, category_id INTEGER, first_message TEXT)")
-        cur.execute(
-            "CREATE TABLE IF NOT EXISTS semi_vendings(id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER, name TEXT, link_channel_id INTEGER, performance_channel_id INTEGER, buyer_role INTEGER, created_at TEXT)")
-        cur.execute(
-            "CREATE TABLE IF NOT EXISTS semi_vending_products(vending_id INTEGER, product_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, price INTEGER, created_at TEXT)")
-        cur.execute(
-            "CREATE TABLE IF NOT EXISTS semi_vending_stocks(stock_id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER, value TEXT, status INTEGER, created_at TEXT)")
+        cur.execute("CREATE TABLE IF NOT EXISTS ticket_buttons(guild_id INTEGER, channel_id INTEGER, message_id INTEGER PRIMARY KEY, role_id INTEGER, category_id INTEGER, first_message TEXT)")
+        cur.execute("CREATE TABLE IF NOT EXISTS semi_vendings(id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER, name TEXT, link_channel_id INTEGER, performance_channel_id INTEGER, buyer_role INTEGER, created_at TEXT)")
+        cur.execute("CREATE TABLE IF NOT EXISTS semi_vending_products(vending_id INTEGER, product_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, price INTEGER, created_at TEXT)")
+        cur.execute("CREATE TABLE IF NOT EXISTS semi_vending_stocks(stock_id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER, value TEXT, status INTEGER, created_at TEXT)")
+        cur.execute("CREATE TABLE IF NOT EXISTS semi_vending_orders(order_id INTEGER PRIMARY KEY, user_id INTEGER, vending_id INTEGER, product_id INTEGER, stock_id JSON, total INTEGER, created_at TEXT)")
         conn.commit()
         conn.close()
 
@@ -335,6 +335,13 @@ class Database:
 
             return stocks
 
+        def buy(self, quantity: int):
+            stocks = Database.SemiVendingStock.get(self.product_id)[:quantity]
+            for i in stocks:
+                i.to_reservation()
+
+            return stocks
+
         @property
         def stocks(self):
             return Database.SemiVendingStock.get(self.product_id)
@@ -380,13 +387,23 @@ class Database:
             self.stock_id = stock_id
             self.created_at = created_at
 
+        def to_reservation(self):
+            conn = Database.get_connection()
+            cur = conn.cursor()
+
+            sql = "UPDATE semi_vending_stocks SET status = -1 WHERE stock_id = ?"
+            cur.execute(sql, (self.stock_id,))
+
+            conn.commit()
+            conn.close()
+
         @staticmethod
         def get(product_id: int):
             conn = Database.get_connection()
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
 
-            sql = "SELECT * FROM semi_vending_stocks WHERE product_id = ? AND status = 1"
+            sql = "SELECT * FROM semi_vending_stocks WHERE product_id = ? AND status = 1 ORDER BY stock_id ASC"
             cur.execute(sql, (product_id,))
 
             results = cur.fetchall()
@@ -411,3 +428,70 @@ class Database:
 
             conn.commit()
             conn.close()
+
+    class SemiVendingOrder:
+        def __init__(self, order_id: int, user_id: int, vending_id: int, product_id: int, stock_id: list[int], total: int, created_at: datetime):
+            self.order_id = order_id
+            self.user_id = user_id
+            self.vending_id = vending_id
+            self.product_id = product_id
+            self.stock_id = stock_id
+            self.total = total
+            self.created_at = created_at
+
+        @staticmethod
+        def get(order_id: int):
+            conn = Database.get_connection()
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+
+            sql = "SELECT * FROM semi_vending_stocks WHERE order_id = ?"
+            cur.execute(sql, (order_id,))
+
+            result = cur.fetchone()
+            if not result:
+                return []
+
+            return Database.SemiVendingOrder(
+                result["order_id"],
+                result["user_id"],
+                result["vending_id"],
+                result["product_id"],
+                result["stock_id"],
+                json.loads(result["total"]),
+                datetime.strptime(result["created_at"], "%Y-%m-%d %H:%M:%S")
+            )
+
+        @staticmethod
+        def add(user_id: int, vending_id: int, product_id: int, stock_id: list[int], total: int):
+            conn = Database.get_connection()
+            cur = conn.cursor()
+
+            while True:
+                order_id = secrets.randbelow(999999999)
+                try:
+                    now = datetime.now().replace(microsecond=0)
+                    sql = "INSERT INTO semi_vending_orders VALUES(?, ?, ?, ?, ?, ?, ?)"
+                    cur.execute(sql, (order_id, user_id, vending_id, product_id, json.dumps(stock_id), total, str(now)))
+
+                    return Database.SemiVendingOrder(
+                        order_id,
+                        user_id,
+                        vending_id,
+                        product_id,
+                        stock_id,
+                        total,
+                        now,
+                    )
+
+                except sqlite3.IntegrityError as e:
+                    if e.args[0].startswith('UNIQUE constraint failed:'):
+                        continue
+
+                    traceback.print_exc()
+                    break
+
+            conn.commit()
+            conn.close()
+
+

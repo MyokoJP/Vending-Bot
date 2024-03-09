@@ -64,8 +64,9 @@ class ReturnStockModal(discord.ui.Modal):
         self.outer = outer
         self.product = product
         self.order_by_latest = order_by_latest
+        self.stocks = product.stocks
 
-        self.number_stocks.label += f"（現在の在庫数: {len(product.stocks)}個）"
+        self.number_stocks.label += f"（現在の在庫数: {len(self.stocks)}個）"
         super().__init__(title="商品の取り出し | Vending")
 
     async def on_submit(self, ctx: Interaction):
@@ -73,6 +74,9 @@ class ReturnStockModal(discord.ui.Modal):
             number_stocks = int(self.number_stocks.value)
         except ValueError:
             return await ctx.response.send_message("有効な数字ではありません。数字を入力してください。")
+
+        if number_stocks > len(self.stocks):
+            return await ctx.response.send_message("在庫数が足りないため、購入することができません。")
 
         if self.order_by_latest:
             return_stocks = self.product.return_order_by_latest(number_stocks)

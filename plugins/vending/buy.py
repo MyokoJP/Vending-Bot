@@ -55,8 +55,9 @@ class BuyProductModal(discord.ui.Modal):
         self.outer = outer
         self.vending = vending
         self.product = product
+        self.stocks = product.stocks
 
-        self.quantity.label += f"（現在の在庫数: {len(product.stocks)}個）"
+        self.quantity.label += f"（現在の在庫数: {len(self.stocks)}個）"
         super().__init__(title="購入 | Vending")
 
     async def on_submit(self, ctx: Interaction):
@@ -65,6 +66,9 @@ class BuyProductModal(discord.ui.Modal):
         except ValueError:
             return await ctx.response.send_message(
                 "有効な数字ではありません。数字を入力してください。")
+
+        if quantity > len(self.stocks):
+            return await ctx.response.send_message("在庫数が足りないため、購入することができません。")
 
         total = self.product.price * quantity
 
@@ -141,6 +145,9 @@ class PayPayLinkModal(discord.ui.Modal):
 
         ### paypayリンクチェックの処理 ###
 
+        stocks = self.product.buy(self.quantity)
+        order = Database.SemiVendingOrder.add(ctx.user.id, self.vending.id, self.product.product_id, [i.stock_id for i in stocks], self.total)
+
         embed = Embed(
             title="半自販機 - 購入リクエスト",
             description="以下のユーザーが半自販機を使用しました。PayPayリンクを受け取った後、ボタンを押してください。",
@@ -150,6 +157,7 @@ class PayPayLinkModal(discord.ui.Modal):
         embed.add_field(name="購入品目", value=self.product.name, inline=False)
         embed.add_field(name="支払金額", value=f"{self.total} 円", inline=False)
         embed.add_field(name="PayPayリンク", value=self.link, inline=False)
+        embed.set_footer(text="By UTA SHOP")
 
         if self.password.value:
             password = self.password.value
@@ -164,6 +172,60 @@ class PayPayLinkModal(discord.ui.Modal):
         embed.add_field(name="備考", value=note)
 
         link_channel = self.outer.bot.get_channel(self.vending.link_channel_id)
-        await link_channel.send(embed=embed)
+        await link_channel.send(embed=embed, view=SendButton(self.outer, self.vending, stocks, self.product, order, ctx.user))
 
-        await ctx.response.send_message("購入リクエストを送信しました。管理者がPayPayリンクを受け取り後、DMに商品が送信されますのでBotからのDMが届く状態にしておいてください。")
+        await ctx.response.send_message("購入リクエストを送信しました。管理者がPayPayリンクを受け取り後、DMに商品が送信されますのでBotからのDMが届く状態にしておいてください。", ephemeral=True)
+
+
+class SendButton(discord.ui.View):
+    def __init__(self,
+                 outer: 'Vending',
+                 vending: Database.SemiVending,
+                 stocks: list[Database.SemiVendingStock],
+                 product: Database.SemiVendingProduct,
+                 order: Database.SemiVendingOrder,
+                 buyer: discord.User,
+                 timeout=None):
+        self.outer = outer
+        self.vending = vending
+        self.stocks = stocks
+        self.product = product
+        self.order = order
+        self.buyer = buyer
+        super().__init__(timeout=timeout)
+
+    @discord.ui.button(label="商品を送信", style=discord.ButtonStyle.success)
+    async def send_product(self, ctx: discord.Interaction, button: discord.ui.Button):
+        embed = Embed(
+            title="購入完了 | Vending",
+            description=f"購入した`{self.product.name}`の購入情報及び商品です。商品はこのメッセージの上に添付されているものをご確認ください。",
+            color=0x00eaff,
+        )
+
+        embed.add_field(name="注文ID", value=f"`{self.order.order_id}`", inline=False)
+        embed.add_field(name="購入品目", value=f"`{self.product.name}`", inline=False)
+        embed.add_field(name="購入個数", value=f"`{len(self.stocks)} 個`", inline=False)
+        embed.add_field(name="支払金額", value=f"`{self.order.total} 円`", inline=False)
+        embed.set_footer(text="By UTA SHOP")
+
+        button.disabled = True
+        button.label = "送信済み"
+
+        content = "```" + "\n".join([i.value for i in self.stocks]) + "```"
+
+        await ctx.response.edit_message(view=self)
+        await self.buyer.send(content, embed=embed)
+
+        if self.vending.performance_channel_id:
+            channel = self.outer.bot.get_channel(self.vending.performance_channel_id)
+
+            embed = Embed(
+                title="商品購入",
+                description=f"ご購入ありがとうございました！",
+                color=0x00eaff,
+            )
+            embed.add_field(name="購入者", value=self.buyer.mention, inline=False)
+            embed.add_field(name="購入品目", value=f"`{self.product.name}`", inline=False)
+            embed.set_footer(text="By UTA SHOP")
+
+            await channel.send(embed=embed)
