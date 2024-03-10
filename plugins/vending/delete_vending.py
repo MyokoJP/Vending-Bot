@@ -1,11 +1,11 @@
 import discord
 from discord import Color, Embed
 
-from database import Database
+from database import Vending
 
 
 class DeleteVendingButton(discord.ui.View):
-    def __init__(self, outer, vending: Database.SemiVending, timeout=None):
+    def __init__(self, outer, vending: Vending, timeout=None):
         self.outer = outer
         self.vending = vending
         super().__init__(timeout=timeout)

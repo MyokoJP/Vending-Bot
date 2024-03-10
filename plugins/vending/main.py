@@ -2,10 +2,10 @@ import discord
 from discord import Color, Embed, Interaction, SelectOption, app_commands
 from discord.ext.commands import Bot, Cog
 
-from database import Database
+from database import Vending, VendingPanel
 from plugins.vending.add_item import AddProductModal
 from plugins.vending.add_stock import AddStockSelect
-from plugins.vending.buy import BuyButton, BuyProductSelect
+from plugins.vending.buy import BuyButton
 from plugins.vending.delete_item import DeleteProductSelect
 from plugins.vending.delete_vending import DeleteVendingButton
 from plugins.vending.edit_item import EditProductSelect
@@ -15,16 +15,28 @@ from plugins.vending.set_links import SetLinkSelect, SetPerformanceSelect
 from plugins.vending.set_role import SetRoleSelect
 
 
-class Vending(Cog):
+class VendingCog(Cog):
     def __init__(self, bot: Bot):
         self.bot = bot
+
+        panels = VendingPanel.get_all()
+        if panels:
+            for i in panels:
+                vending = i.vending
+                bot.add_view(BuyButton(self, vending), message_id=i.message_id)
 
     # 自販機作成コマンド
     @app_commands.command(name="vending_create", description="半自動販売機を作成します")
     @app_commands.describe(name="半自動販売機の名前")
+    @app_commands.choices(
+        type=[
+            app_commands.Choice(name="全自動", value="Auto"),
+            app_commands.Choice(name="半自動", value="SemiAuto")
+        ]
+    )
     @app_commands.default_permissions(administrator=True)
-    async def create(self, ctx: Interaction, name: str):
-        Database.SemiVending.create(ctx.guild_id, name)
+    async def create(self, ctx: Interaction, name: str, type: str):
+        Vending.create(ctx.guild_id, name)
 
         embed = Embed(
             title="作成完了",
@@ -41,7 +53,7 @@ class Vending(Cog):
     @app_commands.command(name="vending_panel", description="半自動販売機のパネルを設置します")
     @app_commands.describe()
     async def panel(self, ctx: Interaction):
-        vending = Database.SemiVending.get_by_guild(ctx.guild_id)
+        vending = Vending.get_by_guild(ctx.guild_id)
 
         if not vending:
             embed = Embed(
@@ -53,10 +65,14 @@ class Vending(Cog):
             await ctx.response.send_message(embed=embed, ephemeral=True)
 
         elif len(vending) == 1:
-            products = vending[0].products
 
-            await ctx.channel.send(embed=create_panel(vending[0]), view=BuyButton(self, vending[0], products))
+            if not vending[0].link_channel_id:
+                return await ctx.response.send_message("リンク送信チャンネルが設定されていません。")
+
+            msg = await ctx.channel.send(embed=create_panel(vending[0]), view=BuyButton(self, vending[0]))
             await ctx.response.send_message("パネルを送信しました。", ephemeral=True)
+
+            VendingPanel.add(ctx.guild_id, ctx.channel_id, msg.id, vending[0].id)
 
         else:
             view = discord.ui.View(timeout=None)
@@ -66,8 +82,8 @@ class Vending(Cog):
     # 自販機選択
     class VendingPanelSelect(discord.ui.Select):
         def __init__(self,
-                     outer: 'Vending',
-                     vending: list[Database.SemiVending],
+                     outer: 'VendingCog',
+                     vending: list[Vending],
                      ):
             self.outer = outer
             self.vending = vending
@@ -80,17 +96,21 @@ class Vending(Cog):
 
         async def callback(self, ctx: discord.Interaction):
             vending = self.vending[int(self.values[0])]
-            products = vending.products
 
-            await ctx.channel.send(embed=create_panel(vending), view=BuyButton(self, vending, products))
+            if not vending.link_channel_id:
+                return await ctx.response.send_message("リンク送信チャンネルが設定されていません。")
+
+            msg = await ctx.channel.send(embed=create_panel(vending), view=BuyButton(self, vending))
             await ctx.response.send_message("パネルを送信しました。", ephemeral=True)
+
+            VendingPanel.add(ctx.guild_id, ctx.channel_id, msg.id, vending.id)
 
     # 自販機設定コマンド
     @app_commands.command(name="vending_setting",
                           description="半自動販売機の設定パネルを表示します")
     @app_commands.describe()
     async def setting(self, ctx: Interaction):
-        vending = Database.SemiVending.get_by_guild(ctx.guild_id)
+        vending = Vending.get_by_guild(ctx.guild_id)
         if not vending:
             embed = Embed(
                 title="エラー",
@@ -115,8 +135,8 @@ class Vending(Cog):
     # 自販機選択
     class VendingSettingSelect(discord.ui.Select):
         def __init__(self,
-                     outer: 'Vending',
-                     vending: list[Database.SemiVending],
+                     outer: 'VendingCog',
+                     vending: list[Vending],
                      ):
             self.outer = outer
             self.vending = vending
@@ -137,7 +157,7 @@ class Vending(Cog):
 
     # 設定ボタン
     class AddProductButton(discord.ui.View):
-        def __init__(self, outer: 'Vending', vending: Database.SemiVending, timeout=None):
+        def __init__(self, outer: 'VendingCog', vending: Vending, timeout=None):
             self.outer = outer
             self.vending = vending
             super().__init__(timeout=timeout)
@@ -158,7 +178,7 @@ class Vending(Cog):
             await ctx.response.send_message("編集する商品を選択してください。", view=view,
                                             ephemeral=True)
 
-        @discord.ui.button(label="商品削除", style=discord.ButtonStyle.red)
+        @discord.ui.button(label="商品削除", style=discord.ButtonStyle.danger)
         async def delete_product(self, ctx: discord.Interaction, button: discord.ui.Button):
             products = self.vending.products
             if not products:
@@ -194,7 +214,7 @@ class Vending(Cog):
             await ctx.response.send_message("取り出しする商品を選択してください。", view=view,
                                             ephemeral=True)
 
-        @discord.ui.button(label="リンク送信チャンネルの設定", style=discord.ButtonStyle.green)
+        @discord.ui.button(label="リンク送信チャンネルの設定", style=discord.ButtonStyle.success)
         async def set_link_channel(self, ctx: discord.Interaction, button: discord.ui.Button):
             view = discord.ui.View(timeout=None)
             view.add_item(SetLinkSelect(self.outer, self.vending))
@@ -202,7 +222,7 @@ class Vending(Cog):
                 "購入された際のPayPayリンクを送信するチャンネルを設定してください。", view=view,
                 ephemeral=True)
 
-        @discord.ui.button(label="実績チャンネルの設定", style=discord.ButtonStyle.green)
+        @discord.ui.button(label="実績チャンネルの設定", style=discord.ButtonStyle.success)
         async def set_performance_channel(self, ctx: discord.Interaction,
                                           button: discord.ui.Button):
             view = discord.ui.View(timeout=None)
@@ -211,7 +231,7 @@ class Vending(Cog):
                 "購入が完了した際の実績メッセージを送信するチャンネルを設定してください。",
                 view=view, ephemeral=True)
 
-        @discord.ui.button(label="購入者ロールの設定", style=discord.ButtonStyle.green)
+        @discord.ui.button(label="購入者ロールの設定", style=discord.ButtonStyle.success)
         async def set_buyer_role(self, ctx: discord.Interaction, button: discord.ui.Button):
             view = discord.ui.View(timeout=None)
             view.add_item(SetRoleSelect(self.outer, self.vending))
@@ -223,7 +243,7 @@ class Vending(Cog):
         async def edit_vending(self, ctx: discord.Interaction, button: discord.ui.Button):
             await ctx.response.send_modal(EditVendingModal(self.outer, self.vending))
 
-        @discord.ui.button(label="半自販機削除", style=discord.ButtonStyle.red)
+        @discord.ui.button(label="半自販機削除", style=discord.ButtonStyle.danger)
         async def delete_vending(self, ctx: discord.Interaction, button: discord.ui.Button):
             embed = Embed(
                 title="Confirm | Vending",
@@ -236,7 +256,7 @@ class Vending(Cog):
                                             ephemeral=True)
 
 
-def create_setting(bot, vending: Database.SemiVending):
+def create_setting(bot, vending: Vending):
     embed = Embed(
         title=vending.name + "の設定",
         description="設定を行うには下の各種ボタンを押して設定を行ってください。",
@@ -269,6 +289,9 @@ def create_setting(bot, vending: Database.SemiVending):
     embed.add_field(name="Shopの購入者ロール", value=buyer_role_name, inline=False)
 
     products = vending.products
+
+    embed.add_field(name="商品数", value=str(len(products)), inline=False)
+
     if products:
         products_description = []
         for i in products:
@@ -285,7 +308,7 @@ def create_setting(bot, vending: Database.SemiVending):
     return [embed]
 
 
-def create_panel(vending: Database.SemiVending):
+def create_panel(vending: Vending):
     products = vending.products
 
     values = []

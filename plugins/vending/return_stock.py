@@ -1,11 +1,11 @@
 import discord
 from discord import Embed, Interaction, SelectOption
 
-from database import Database
+from database import VendingProduct
 
 
 class ReturnStockSelect(discord.ui.Select):
-    def __init__(self, outer, products: list[Database.SemiVendingProduct]):
+    def __init__(self, outer, products: list[VendingProduct]):
         self.outer = outer
         self.products = products
 
@@ -23,7 +23,7 @@ class ReturnStockSelect(discord.ui.Select):
 
 
 class OrderSelect(discord.ui.Select):
-    def __init__(self, outer, product: Database.SemiVendingProduct):
+    def __init__(self, outer, product: VendingProduct):
         self.outer = outer
         self.product = product
 
@@ -60,7 +60,7 @@ class ReturnStockModal(discord.ui.Modal):
         placeholder="例: 2",
     )
 
-    def __init__(self, outer, product: Database.SemiVendingProduct, order_by_latest: bool):
+    def __init__(self, outer, product: VendingProduct, order_by_latest: bool):
         self.outer = outer
         self.product = product
         self.order_by_latest = order_by_latest

@@ -24,3 +24,7 @@ class Status(Cog):
         else:
             await self.bot.change_presence(activity=discord.Game(name=f"By UTA SHOP"))
             self.playing = 0
+
+
+def setup(bot: Bot):
+    return bot.add_cog(Status(bot))

@@ -1,7 +1,7 @@
 import discord
 from discord import Color, Embed
 
-from database import Database
+from database import Vending
 
 
 class EditVendingModal(discord.ui.Modal):
@@ -11,7 +11,7 @@ class EditVendingModal(discord.ui.Modal):
         placeholder="例: shop",
     )
 
-    def __init__(self, outer, vending: Database.SemiVending):
+    def __init__(self, outer, vending: Vending):
         self.outer = outer
         self.vending = vending
         super().__init__(title="半自販機の編集 | Vending", custom_id="add_product")

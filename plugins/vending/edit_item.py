@@ -1,13 +1,13 @@
 import discord
 from discord import Embed, SelectOption
 
-from database import Database
+from database import VendingProduct
 
 
 class EditProductSelect(discord.ui.Select):
     def __init__(self,
                  outer,
-                 products: list[Database.SemiVendingProduct],
+                 products: list[VendingProduct],
                  ):
         self.outer = outer
         self.products = products
@@ -47,7 +47,7 @@ class EditProductModal(discord.ui.Modal):
         default=None,
     )
 
-    def __init__(self, outer, product: Database.SemiVendingProduct):
+    def __init__(self, outer, product: VendingProduct):
         self.outer = outer
         self.product = product
         super().__init__(title="商品の編集 | Vending", timeout=None)

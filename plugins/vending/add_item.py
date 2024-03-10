@@ -1,7 +1,7 @@
 import discord
 from discord import Embed
 
-from database import Database
+from database import Vending, VendingProduct
 
 
 class AddProductModal(discord.ui.Modal):
@@ -28,7 +28,7 @@ class AddProductModal(discord.ui.Modal):
         placeholder="例: 50"
     )
 
-    def __init__(self, outer, vending: Database.SemiVending):
+    def __init__(self, outer, vending: Vending):
         self.outer = outer
         self.vending = vending
         super().__init__(title="商品の追加 | Vending", custom_id="add_product")
@@ -40,8 +40,8 @@ class AddProductModal(discord.ui.Modal):
             return await ctx.response.send_message(
                 "価格が有効な数字ではありません。数字を入力してください。", ephemeral=True)
 
-        Database.SemiVendingProduct.add(self.vending.id, self.name.value,
-                                        self.description.value, price)
+        VendingProduct.add(self.vending.id, self.name.value,
+                           self.description.value, price)
 
         description = f"商品を追加しました。\n\n商品名: `{self.name.value}`\n商品説明:"
         if self.description.value:

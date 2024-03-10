@@ -1,13 +1,13 @@
 import discord
 from discord import Color, Embed, SelectOption
 
-from database import Database
+from database import VendingProduct
 
 
 class DeleteProductSelect(discord.ui.Select):
     def __init__(self,
                  outer,
-                 products: list[Database.SemiVendingProduct],
+                 products: list[VendingProduct],
                  ):
         self.outer = outer
         self.products = products
@@ -31,7 +31,7 @@ class DeleteProductSelect(discord.ui.Select):
 
 
 class DeleteProductButton(discord.ui.View):
-    def __init__(self, outer, product: Database.SemiVendingProduct, interaction,
+    def __init__(self, outer, product: VendingProduct, interaction,
                  timeout=None):
         self.outer = outer
         self.product = product

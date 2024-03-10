@@ -6,7 +6,7 @@ from discord import app_commands
 from discord.ext.commands import Bot, Cog
 
 import config
-from database import Database
+from database import TicketButton
 
 
 class TicketCog(Cog):
@@ -16,7 +16,7 @@ class TicketCog(Cog):
         self.bot = bot
         bot.add_view(self.CompleteButton(self))
 
-        ticket_buttons = Database.TicketButton.get_all()
+        ticket_buttons = TicketButton.get_all()
         if ticket_buttons:
             for i in ticket_buttons:
                 role = self.bot.get_guild(i.guild_id).get_role(i.role_id) if i.role_id else None
@@ -58,7 +58,7 @@ class TicketCog(Cog):
         role_id = None
         if role:
             role_id = role.id
-        Database.TicketButton.create(ctx.guild_id, ctx.channel_id, message.id, role_id, category.id, first_message)
+        TicketButton.create(ctx.guild_id, ctx.channel_id, message.id, role_id, category.id, first_message)
         await ctx.response.send_message("チケット作成ボタンを送信しました", ephemeral=True)
 
     # チケット作成ボタン
@@ -126,8 +126,11 @@ class TicketCog(Cog):
             # メッセージ削除
             await self.message.delete()
 
+            button.disabled = True
+            await ctx.response.edit_message(view=self)
+
             # embed送信
-            await ctx.response.send_message(embed=embed)
+            await ctx.channel.send(embed=embed)
 
             # 10秒後に削除
             await asyncio.sleep(10)

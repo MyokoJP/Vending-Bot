@@ -3,32 +3,29 @@ import re
 import discord
 from discord import Color, Embed, Interaction, SelectOption
 
-from database import Database
+from database import Vending, VendingProduct, VendingStock, VendingOrder
 
 
 class BuyButton(discord.ui.View):
     def __init__(self,
                  outer,
-                 vending: Database.SemiVending,
-                 products: list[Database.SemiVendingProduct],
-                 timeout=None):
+                 vending: Vending):
         self.outer = outer
         self.vending = vending
-        self.products = products
-        super().__init__(timeout=timeout)
+        super().__init__(timeout=None)
 
-    @discord.ui.button(label="購入", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="購入", style=discord.ButtonStyle.success, custom_id="buy_button:vending")
     async def add_product(self, ctx: discord.Interaction, button: discord.ui.Button):
         view = discord.ui.View(timeout=None)
-        view.add_item(BuyProductSelect(self.outer, self.vending, self.products))
+        view.add_item(BuyProductSelect(self.outer, self.vending, self.vending.products))
         await ctx.response.send_message("購入する商品を選択してください。", view=view, ephemeral=True)
 
 
 class BuyProductSelect(discord.ui.Select):
     def __init__(self,
                  outer,
-                 vending: Database.SemiVending,
-                 products: list[Database.SemiVendingProduct],
+                 vending: Vending,
+                 products: list[VendingProduct],
                  ):
         self.outer = outer
         self.vending = vending
@@ -51,7 +48,7 @@ class BuyProductModal(discord.ui.Modal):
         placeholder="例: 1",
     )
 
-    def __init__(self, outer, vending: Database.SemiVending, product: Database.SemiVendingProduct):
+    def __init__(self, outer, vending: Vending, product: VendingProduct):
         self.outer = outer
         self.vending = vending
         self.product = product
@@ -83,9 +80,9 @@ class BuyProductModal(discord.ui.Modal):
 
 class PayButton(discord.ui.View):
     def __init__(self,
-                 outer: 'Vending',
-                 vending: Database.SemiVending,
-                 product: Database.SemiVendingProduct,
+                 outer,
+                 vending: Vending,
+                 product: VendingProduct,
                  quantity: int,
                  total: int,
                  timeout=None):
@@ -124,9 +121,9 @@ class PayPayLinkModal(discord.ui.Modal):
     )
 
     def __init__(self,
-                 outer: 'Vending',
-                 vending: Database.SemiVending,
-                 product: Database.SemiVendingProduct,
+                 outer,
+                 vending: Vending,
+                 product: VendingProduct,
                  quantity: int,
                  total: int,
                  timeout=None):
@@ -146,7 +143,7 @@ class PayPayLinkModal(discord.ui.Modal):
         ### paypayリンクチェックの処理 ###
 
         stocks = self.product.buy(self.quantity)
-        order = Database.SemiVendingOrder.add(ctx.user.id, self.vending.id, self.product.product_id, [i.stock_id for i in stocks], self.total)
+        order = VendingOrder.add(ctx.user.id, self.vending.id, self.product.product_id, [i.stock_id for i in stocks], self.total)
 
         embed = Embed(
             title="半自販機 - 購入リクエスト",
@@ -179,12 +176,12 @@ class PayPayLinkModal(discord.ui.Modal):
 
 class SendButton(discord.ui.View):
     def __init__(self,
-                 outer: 'Vending',
-                 vending: Database.SemiVending,
-                 stocks: list[Database.SemiVendingStock],
-                 product: Database.SemiVendingProduct,
-                 order: Database.SemiVendingOrder,
-                 buyer: discord.User,
+                 outer,
+                 vending: Vending,
+                 stocks: list[VendingStock],
+                 product: VendingProduct,
+                 order: VendingOrder,
+                 buyer: discord.Member,
                  timeout=None):
         self.outer = outer
         self.vending = vending
@@ -229,3 +226,7 @@ class SendButton(discord.ui.View):
             embed.set_footer(text="By UTA SHOP")
 
             await channel.send(embed=embed)
+
+        if self.vending.buyer_role:
+            role = self.outer.bot.get_guild(self.vending.guild_id).get_role(self.vending.buyer_role)
+            await self.buyer.add_roles(role)

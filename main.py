@@ -14,9 +14,9 @@ async def on_ready():
     Database.initialize()
 
     await load_extensions()
-    # await bot.tree.sync()
-
     print(f"{bot.user.display_name} としてログインしました")
+
+    await bot.tree.sync()
     print("同期が完了しました")
 
 

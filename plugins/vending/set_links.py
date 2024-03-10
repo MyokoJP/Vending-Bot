@@ -1,11 +1,11 @@
 import discord.ui
 from discord import ChannelType
 
-from database import Database
+from database import Vending
 
 
 class SetLinkSelect(discord.ui.ChannelSelect):
-    def __init__(self, outer, vending: Database.SemiVending, disabled=False):
+    def __init__(self, outer, vending: Vending, disabled=False):
         self.outer = outer
         self.vending = vending
 
@@ -22,7 +22,7 @@ class SetLinkSelect(discord.ui.ChannelSelect):
 
 
 class SetPerformanceSelect(discord.ui.ChannelSelect):
-    def __init__(self, outer, vending: Database.SemiVending, disabled=False):
+    def __init__(self, outer, vending: Vending, disabled=False):
         self.outer = outer
         self.vending = vending
 

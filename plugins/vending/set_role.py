@@ -1,10 +1,10 @@
 import discord.ui
 
-from database import Database
+from database import Vending
 
 
 class SetRoleSelect(discord.ui.RoleSelect):
-    def __init__(self, outer, vending: Database.SemiVending, disabled=False):
+    def __init__(self, outer, vending: Vending, disabled=False):
         self.outer = outer
         self.vending = vending
 

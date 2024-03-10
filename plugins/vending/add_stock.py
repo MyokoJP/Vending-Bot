@@ -1,11 +1,11 @@
 import discord
 from discord import Embed, Interaction, SelectOption
 
-from database import Database
+from database import VendingProduct, VendingStock
 
 
 class AddStockSelect(discord.ui.Select):
-    def __init__(self, outer, products: list[Database.SemiVendingProduct]):
+    def __init__(self, outer, products: list[VendingProduct]):
         self.outer = outer
         self.products = products
 
@@ -25,7 +25,7 @@ class AddStockModal(discord.ui.Modal):
         placeholder="example1@example.com:password1234\nexample2@example.com:password5678",
 
     )
-    def __init__(self, outer, product: Database.SemiVendingProduct):
+    def __init__(self, outer, product: VendingProduct):
 
         self.outer = outer
         self.product = product
@@ -39,7 +39,7 @@ class AddStockModal(discord.ui.Modal):
     async def on_submit(self, ctx: Interaction):
         for i in self.stock.value.split("\n"):
             if i:
-                Database.SemiVendingStock.add(self.product.product_id, i)
+                VendingStock.add(self.product.product_id, i)
 
         embed = Embed(
             title="Success | Vending",
