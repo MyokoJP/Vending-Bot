@@ -1,4 +1,5 @@
 import discord.ui
+from discord import Color, Embed
 
 from database import Vending
 
@@ -15,6 +16,30 @@ class SetRoleSelect(discord.ui.RoleSelect):
         self.vending.set_buyer_role_id(role.id)
 
         view = discord.ui.View()
-        view.add_item(SetRoleSelect(self.outer, self.vending, True))
+        self.disabled = True
+        view.add_item(self)
 
-        await ctx.response.edit_message(content=f"ロールを設定しました。\n購入者ロール: {role.mention}", view=view)
+        if ctx.guild.self_role.position < role.position:
+            embed = Embed(
+                title="Success | Vending",
+                description="ロールの設定を更新しました。",
+                color=Color.yellow(),
+            )
+            embed.add_field(name="購入者ロール", value=role.mention, inline=False)
+            embed.add_field(name=":warning: 注意", value="権限の設定でロールの付与ができないため、\nロールの順序を入れ替えてください", inline=False)
+            embed.set_footer(text="By UTA SHOP")
+
+            return await ctx.response.edit_message(
+                content="",
+                embed=embed,
+                view=view,
+            )
+
+        embed = Embed(
+            title="Success | Vending",
+            description="ロールの設定を更新しました。",
+            color=Color.green(),
+        )
+        embed.add_field(name="購入者ロール", value=role.mention)
+        embed.set_footer(text="By UTA SHOP")
+        await ctx.response.edit_message(content="", embed=embed, view=view)

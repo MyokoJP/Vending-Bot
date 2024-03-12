@@ -14,7 +14,7 @@ class NukeCog(Cog):
     async def nuke(self, interaction: Interaction):
         if interaction.user.guild_permissions.administrator:
             embed = Embed(title="確認 | Confirm",
-                          description="本当にチャンネルログを消去しますか？\n**消去を押した後操作は取り消せません**",
+                          description="本当にチャンネルログを消去しますか？\n**消去を押した後、操作は取り消せません**",
                           color=Color.yellow(),
                           )
             embed.set_footer(text="By UTA SHOP")

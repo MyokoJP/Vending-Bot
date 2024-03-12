@@ -142,7 +142,7 @@ class VendingCog(Cog):
             self.vending = vending
 
             options = [
-                SelectOption(label=vending[i].name, description=str(vending[i].id), value=str(i))
+                SelectOption(label=vending[i].name, value=str(i))
                 for i in range(len(vending))]
             super().__init__(options=options, placeholder="選択してください...")
 
@@ -152,8 +152,7 @@ class VendingCog(Cog):
             embeds = create_setting(self.outer.bot, vending)
             return await ctx.response.edit_message(embeds=embeds,
                                                    view=self.outer.AddProductButton(self.outer,
-                                                                                    vending),
-                                                   ephemeral=True)
+                                                                                    vending))
 
     # 設定ボタン
     class AddProductButton(discord.ui.View):
@@ -283,7 +282,7 @@ def create_setting(bot, vending: Vending):
 
     buyer_role_name = "なし"
     if vending.buyer_role:
-        buyer_role = guild.get_channel(vending.buyer_role)
+        buyer_role = guild.get_role(vending.buyer_role)
         if buyer_role:
             buyer_role_name = buyer_role.mention
     embed.add_field(name="Shopの購入者ロール", value=buyer_role_name, inline=False)
